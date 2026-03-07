@@ -1,173 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+/**
+ * Child Health Tracker - Main React Component
+ * 
+ * Features:
+ * - User authentication (register/login)
+ * - Multi-child support
+ * - Vaccine tracking with reminders
+ * - Health log management
+ * - Medicine consolidation
+ * - Growth charts
+ * - Cloud sync across devices
+ */
+
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { 
+  registerUser, 
+  loginUser, 
+  logoutUser, 
+  onAuthChange,
+  syncAllDataToCloud,
+  loadAllDataFromCloud
+} from './firebase';
 
-// IndexedDB Setup
-const DB_NAME = 'ChildHealthTracker';
-const DB_VERSION = 1;
-const STORE_NAMES = {
-  CHILDREN: 'children',
-  VACCINES: 'vaccines',
-  HEALTH_LOGS: 'healthLogs',
-  APP_STATE: 'appState'
-};
+// ============================================
+// ICON COMPONENTS (Material Design)
+// ============================================
 
-class IndexedDBManager {
-  constructor() {
-    this.db = null;
-  }
-
-  async init() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        this.db = request.result;
-        resolve(this.db);
-      };
-
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        
-        if (!db.objectStoreNames.contains(STORE_NAMES.CHILDREN)) {
-          db.createObjectStore(STORE_NAMES.CHILDREN, { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains(STORE_NAMES.VACCINES)) {
-          db.createObjectStore(STORE_NAMES.VACCINES, { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains(STORE_NAMES.HEALTH_LOGS)) {
-          db.createObjectStore(STORE_NAMES.HEALTH_LOGS, { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains(STORE_NAMES.APP_STATE)) {
-          db.createObjectStore(STORE_NAMES.APP_STATE, { keyPath: 'key' });
-        }
-      };
-    });
-  }
-
-  async addChild(child) {
-    const transaction = this.db.transaction([STORE_NAMES.CHILDREN], 'readwrite');
-    return new Promise((resolve, reject) => {
-      transaction.objectStore(STORE_NAMES.CHILDREN).add(child);
-      transaction.oncomplete = () => resolve(child);
-      transaction.onerror = () => reject(transaction.error);
-    });
-  }
-
-  async getChildren() {
-    const transaction = this.db.transaction([STORE_NAMES.CHILDREN], 'readonly');
-    return new Promise((resolve, reject) => {
-      const request = transaction.objectStore(STORE_NAMES.CHILDREN).getAll();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  async updateChild(child) {
-    const transaction = this.db.transaction([STORE_NAMES.CHILDREN], 'readwrite');
-    return new Promise((resolve, reject) => {
-      transaction.objectStore(STORE_NAMES.CHILDREN).put(child);
-      transaction.oncomplete = () => resolve(child);
-      transaction.onerror = () => reject(transaction.error);
-    });
-  }
-
-  async deleteChild(childId) {
-    const transaction = this.db.transaction([STORE_NAMES.CHILDREN], 'readwrite');
-    return new Promise((resolve, reject) => {
-      transaction.objectStore(STORE_NAMES.CHILDREN).delete(childId);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
-  }
-
-  async addVaccine(vaccine) {
-    const transaction = this.db.transaction([STORE_NAMES.VACCINES], 'readwrite');
-    return new Promise((resolve, reject) => {
-      transaction.objectStore(STORE_NAMES.VACCINES).add(vaccine);
-      transaction.oncomplete = () => resolve(vaccine);
-      transaction.onerror = () => reject(transaction.error);
-    });
-  }
-
-  async getVaccines(childId) {
-    const transaction = this.db.transaction([STORE_NAMES.VACCINES], 'readonly');
-    return new Promise((resolve, reject) => {
-      const request = transaction.objectStore(STORE_NAMES.VACCINES).getAll();
-      request.onsuccess = () => {
-        const vaccines = request.result.filter(v => v.childId === childId);
-        resolve(vaccines);
-      };
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  async deleteVaccine(vaccineId) {
-    const transaction = this.db.transaction([STORE_NAMES.VACCINES], 'readwrite');
-    return new Promise((resolve, reject) => {
-      transaction.objectStore(STORE_NAMES.VACCINES).delete(vaccineId);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
-  }
-
-  async addHealthLog(log) {
-    const transaction = this.db.transaction([STORE_NAMES.HEALTH_LOGS], 'readwrite');
-    return new Promise((resolve, reject) => {
-      transaction.objectStore(STORE_NAMES.HEALTH_LOGS).add(log);
-      transaction.oncomplete = () => resolve(log);
-      transaction.onerror = () => reject(transaction.error);
-    });
-  }
-
-  async getHealthLogs(childId) {
-    const transaction = this.db.transaction([STORE_NAMES.HEALTH_LOGS], 'readonly');
-    return new Promise((resolve, reject) => {
-      const request = transaction.objectStore(STORE_NAMES.HEALTH_LOGS).getAll();
-      request.onsuccess = () => {
-        const logs = request.result.filter(l => l.childId === childId).sort((a, b) => new Date(b.date) - new Date(a.date));
-        resolve(logs);
-      };
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  async deleteHealthLog(logId) {
-    const transaction = this.db.transaction([STORE_NAMES.HEALTH_LOGS], 'readwrite');
-    return new Promise((resolve, reject) => {
-      transaction.objectStore(STORE_NAMES.HEALTH_LOGS).delete(logId);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
-  }
-
-  async saveState(key, value) {
-    const transaction = this.db.transaction([STORE_NAMES.APP_STATE], 'readwrite');
-    return new Promise((resolve, reject) => {
-      transaction.objectStore(STORE_NAMES.APP_STATE).put({ key, value });
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
-  }
-
-  async getState(key) {
-    const transaction = this.db.transaction([STORE_NAMES.APP_STATE], 'readonly');
-    return new Promise((resolve, reject) => {
-      const request = transaction.objectStore(STORE_NAMES.APP_STATE).get(key);
-      request.onsuccess = () => resolve(request.result?.value);
-      request.onerror = () => reject(request.error);
-    });
-  }
-}
-
-// Helper function to format date for input
-const formatDateForInput = (dateString) => {
-  if (!dateString) return new Date().toISOString().split('T')[0];
-  const date = new Date(dateString);
-  return date.toISOString().split('T')[0];
-};
-
-// Material Design Icon Components
 const AddIcon = () => (
   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
@@ -219,7 +77,7 @@ const VaccineIcon = () => (
 
 const HealthIcon = () => (
   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 9.5c0 .83-.67 1.5-1.5 1.5S11 13.33 11 12.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5zM7 9c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm10 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-5 8c-2.33 0-4.31 1.46-5.11 3.5h10.22c-.8-2.04-2.78-3.5-5.11-3.5z" />
   </svg>
 );
 
@@ -235,194 +93,470 @@ const SettingsIcon = () => (
   </svg>
 );
 
-// Main App Component
-export default function ChildHealthTracker() {
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
+/**
+ * Format date string to YYYY-MM-DD format
+ * Used for date input fields
+ */
+const formatDateForInput = (dateString) => {
+  if (!dateString) return new Date().toISOString().split('T')[0];
+  const date = new Date(dateString);
+  return date.toISOString().split('T')[0];
+};
+
+/**
+ * Calculate child's age from date of birth
+ */
+const calculateAge = (dob) => {
+  const today = new Date();
+  const birthDate = new Date(dob);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  const monthsSince = (today.getFullYear() - birthDate.getFullYear()) * 12 + (today.getMonth() - birthDate.getMonth());
+  if (age === 0) {
+    return `${monthsSince} months`;
+  }
+  return `${age} year${age > 1 ? 's' : ''}, ${monthsSince % 12} months`;
+};
+
+// ============================================
+// MAIN APP COMPONENT
+// ============================================
+
+export default function App() {
+  // ========== AUTHENTICATION STATE ==========
+  const [user, setUser] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showLoginForm, setShowLoginForm] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ========== APP STATE ==========
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeChild, setActiveChild] = useState(null);
   const [children, setChildren] = useState([]);
   const [vaccines, setVaccines] = useState([]);
   const [healthLogs, setHealthLogs] = useState([]);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [syncError, setSyncError] = useState('');
+
+  // ========== MODAL STATE ==========
   const [showAddChild, setShowAddChild] = useState(false);
   const [showEditChild, setShowEditChild] = useState(false);
   const [editingChildData, setEditingChildData] = useState(null);
   const [showAddVaccine, setShowAddVaccine] = useState(false);
+  const [showEditVaccine, setShowEditVaccine] = useState(false);
+  const [editingVaccine, setEditingVaccine] = useState(null);
   const [showAddHealth, setShowAddHealth] = useState(false);
+  const [showEditHealth, setShowEditHealth] = useState(false);
+  const [editingHealthLog, setEditingHealthLog] = useState(null);
   const [expandedLog, setExpandedLog] = useState(null);
+
+  // ========== MEDICINES STATE ==========
   const [medicines, setMedicines] = useState([]);
-  const [newMedicine, setNewMedicine] = useState({ name: '', dosage: '', frequency: '', duration: '' });
-  const dbRef = useRef(null);
+  const [newMedicine, setNewMedicine] = useState({ 
+    name: '', 
+    dosage: '', 
+    frequency: '', 
+    duration: '' 
+  });
 
-  // Initialize
+  // ========== FIREBASE INITIALIZATION ==========
+  // Listen to authentication state changes
   useEffect(() => {
-    const initDB = async () => {
-      const dbManager = new IndexedDBManager();
-      await dbManager.init();
-      dbRef.current = dbManager;
-
-      const savedChildren = await dbManager.getChildren();
-      setChildren(savedChildren);
-
-      if (savedChildren.length > 0) {
-        const lastChild = await dbManager.getState('lastActiveChild');
-        const childToLoad = lastChild ? savedChildren.find(c => c.id === lastChild) : savedChildren[0];
-        
-        if (childToLoad) {
-          setActiveChild(childToLoad);
-          await loadChildData(childToLoad.id, dbManager);
-        }
+    const unsubscribe = onAuthChange((currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        setIsLoggedIn(true);
+        loadDataFromCloud(currentUser.uid);
+      } else {
+        setUser(null);
+        setIsLoggedIn(false);
+        setChildren([]);
+        setVaccines([]);
+        setHealthLogs([]);
       }
-    };
+    });
 
-    initDB();
+    return unsubscribe;
   }, []);
 
-  const loadChildData = async (childId, dbManager) => {
-    const logs = await dbManager.getHealthLogs(childId);
-    const vacs = await dbManager.getVaccines(childId);
-    setHealthLogs(logs);
-    setVaccines(vacs);
+  // ========== LOAD DATA FROM CLOUD ==========
+  /**
+   * Load user's data from Firebase cloud
+   */
+  const loadDataFromCloud = async (userId) => {
+    setDataLoading(true);
+    setSyncError('');
+    try {
+      const data = await loadAllDataFromCloud(userId);
+      setChildren(data.children || []);
+      setVaccines(data.vaccines || []);
+      setHealthLogs(data.healthLogs || []);
+      
+      // Set first child as active if available
+      if (data.children && data.children.length > 0) {
+        setActiveChild(data.children[0]);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setSyncError('Failed to load data from cloud. Please refresh the page.');
+    } finally {
+      setDataLoading(false);
+    }
   };
 
+  // ========== SYNC DATA TO CLOUD ==========
+  // Sync data whenever it changes
+  useEffect(() => {
+    if (user && (children.length > 0 || vaccines.length > 0 || healthLogs.length > 0)) {
+      const syncData = async () => {
+        try {
+          await syncAllDataToCloud(user.uid, children, vaccines, healthLogs);
+          setSyncError('');
+        } catch (error) {
+          console.error('Sync error:', error);
+          setSyncError('Failed to sync data. Changes may not be saved to cloud.');
+        }
+      };
+      
+      syncData();
+    }
+  }, [children, vaccines, healthLogs, user]);
+
+  // ========== AUTHENTICATION HANDLERS ==========
+
+  /**
+   * Handle user login
+   */
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setIsLoading(true);
+    
+    try {
+      await loginUser(loginEmail, loginPassword);
+      setShowLoginForm(false);
+      setLoginEmail('');
+      setLoginPassword('');
+    } catch (error) {
+      console.error('Login error:', error);
+      setAuthError(error.message || 'Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Handle user registration
+   */
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setIsLoading(true);
+    
+    try {
+      // Validate password strength
+      if (loginPassword.length < 6) {
+        throw new Error('Password must be at least 6 characters');
+      }
+      
+      await registerUser(loginEmail, loginPassword);
+      setIsRegistering(false);
+      setLoginEmail('');
+      setLoginPassword('');
+    } catch (error) {
+      console.error('Registration error:', error);
+      setAuthError(error.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Handle user logout
+   */
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      setShowLoginForm(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+      alert('Logout failed. Please try again.');
+    }
+  };
+
+  // ========== CHILD MANAGEMENT ==========
+
+  /**
+   * Add new child
+   */
   const handleAddChild = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    
+    // Validate input
+    const childName = formData.get('childName')?.trim();
+    if (!childName) {
+      alert('Please enter child name');
+      return;
+    }
+
     const newChild = {
       id: `child_${Date.now()}`,
-      name: formData.get('childName'),
+      name: childName,
       dob: formData.get('dob'),
       createdAt: new Date().toISOString()
     };
 
-    await dbRef.current.addChild(newChild);
-    setChildren([...children, newChild]);
+    const updatedChildren = [...children, newChild];
+    setChildren(updatedChildren);
     setActiveChild(newChild);
-    await dbRef.current.saveState('lastActiveChild', newChild.id);
     setShowAddChild(false);
     e.target.reset();
-    
-    await loadChildData(newChild.id, dbRef.current);
   };
 
+  /**
+   * Edit existing child
+   */
   const handleEditChild = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    
+    const childName = formData.get('childName')?.trim();
+    if (!childName) {
+      alert('Please enter child name');
+      return;
+    }
+
     const updatedChild = {
       ...editingChildData,
-      name: formData.get('childName'),
+      name: childName,
       dob: formData.get('dob')
     };
 
-    await dbRef.current.updateChild(updatedChild);
-    
     setChildren(children.map(c => c.id === updatedChild.id ? updatedChild : c));
     setActiveChild(updatedChild);
     setShowEditChild(false);
-    e.target.reset();
   };
 
+  /**
+   * Remove child and all related data
+   */
   const handleRemoveChild = async (childId) => {
-    if (window.confirm('Are you sure you want to remove this child? All data will be deleted.')) {
-      await dbRef.current.deleteChild(childId);
-      
-      const vaccines = await dbRef.current.getVaccines(childId);
-      for (const vac of vaccines) {
-        await dbRef.current.deleteVaccine(vac.id);
-      }
-      
-      const logs = await dbRef.current.getHealthLogs(childId);
-      for (const log of logs) {
-        await dbRef.current.deleteHealthLog(log.id);
-      }
-
+    if (window.confirm('Are you sure? This will delete all data for this child.')) {
       const updatedChildren = children.filter(c => c.id !== childId);
+      const updatedVaccines = vaccines.filter(v => v.childId !== childId);
+      const updatedLogs = healthLogs.filter(l => l.childId !== childId);
+      
       setChildren(updatedChildren);
+      setVaccines(updatedVaccines);
+      setHealthLogs(updatedLogs);
       
       if (activeChild?.id === childId) {
-        if (updatedChildren.length > 0) {
-          setActiveChild(updatedChildren[0]);
-          await loadChildData(updatedChildren[0].id, dbRef.current);
-        } else {
-          setActiveChild(null);
-          setVaccines([]);
-          setHealthLogs([]);
-        }
+        setActiveChild(updatedChildren.length > 0 ? updatedChildren[0] : null);
       }
     }
   };
 
+  // ========== VACCINE MANAGEMENT ==========
+
+  /**
+   * Add new vaccine
+   */
   const handleAddVaccine = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    
+    // Validate input
+    const vaccineName = formData.get('vaccineName')?.trim();
+    if (!vaccineName || !activeChild) {
+      alert('Please fill in required fields');
+      return;
+    }
+
     const vaccine = {
       id: `vac_${Date.now()}`,
       childId: activeChild.id,
-      name: formData.get('vaccineName'),
+      name: vaccineName,
       dateGiven: formData.get('dateGiven'),
       nextDueDate: formData.get('nextDueDate'),
-      clinic: formData.get('clinic'),
-      notes: formData.get('notes'),
+      clinic: formData.get('clinic')?.trim() || '',
+      notes: formData.get('notes')?.trim() || '',
       createdAt: new Date().toISOString()
     };
 
-    await dbRef.current.addVaccine(vaccine);
     setVaccines([...vaccines, vaccine]);
     setShowAddVaccine(false);
     e.target.reset();
   };
 
+  /**
+   * Edit existing vaccine
+   */
+  const handleEditVaccine = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    
+    const vaccineName = formData.get('vaccineName')?.trim();
+    if (!vaccineName) {
+      alert('Please fill in required fields');
+      return;
+    }
+
+    const updatedVaccine = {
+      ...editingVaccine,
+      name: vaccineName,
+      dateGiven: formData.get('dateGiven'),
+      nextDueDate: formData.get('nextDueDate'),
+      clinic: formData.get('clinic')?.trim() || '',
+      notes: formData.get('notes')?.trim() || ''
+    };
+
+    setVaccines(vaccines.map(v => v.id === updatedVaccine.id ? updatedVaccine : v));
+    setShowEditVaccine(false);
+  };
+
+  /**
+   * Delete vaccine
+   */
   const handleDeleteVaccine = async (vaccineId) => {
     if (window.confirm('Delete this vaccine record?')) {
-      await dbRef.current.deleteVaccine(vaccineId);
       setVaccines(vaccines.filter(v => v.id !== vaccineId));
     }
   };
 
+  // ========== HEALTH LOG MANAGEMENT ==========
+
+  /**
+   * Add new health log
+   */
   const handleAddHealthLog = async (e) => {
     e.preventDefault();
-    // if (medicines.length === 0) {
-    //   alert('Please add at least one medicine');
-    //   return;
-    // }
+    
+    if (medicines.length === 0) {
+      alert('Please add at least one medicine');
+      return;
+    }
 
     const formData = new FormData(e.target);
+    
+    // Validate inputs
+    const weight = parseFloat(formData.get('weight'));
+    const height = parseFloat(formData.get('height'));
+    
+    if (weight <= 0 || height <= 0) {
+      alert('Weight and height must be greater than 0');
+      return;
+    }
+
     const log = {
       id: `log_${Date.now()}`,
       childId: activeChild.id,
       date: formData.get('date'),
-      weight: parseFloat(formData.get('weight')),
-      height: parseFloat(formData.get('height')),
-      ailment: formData.get('ailment'),
-      medicines: medicines,
-      notes: formData.get('notes'),
+      weight: weight,
+      height: height,
+      ailment: formData.get('ailment')?.trim(),
+      medicines: [...medicines],
+      notes: formData.get('notes')?.trim() || '',
       createdAt: new Date().toISOString()
     };
 
-    await dbRef.current.addHealthLog(log);
     const updatedLogs = [log, ...healthLogs].sort((a, b) => new Date(b.date) - new Date(a.date));
     setHealthLogs(updatedLogs);
     setShowAddHealth(false);
     setMedicines([]);
+    setNewMedicine({ name: '', dosage: '', frequency: '', duration: '' });
     e.target.reset();
   };
 
+  /**
+   * Edit existing health log
+   */
+  const handleEditHealthLog = async (e) => {
+    e.preventDefault();
+    
+    if (medicines.length === 0) {
+      alert('Please add at least one medicine');
+      return;
+    }
+
+    const formData = new FormData(e.target);
+    
+    const weight = parseFloat(formData.get('weight'));
+    const height = parseFloat(formData.get('height'));
+    
+    if (weight <= 0 || height <= 0) {
+      alert('Weight and height must be greater than 0');
+      return;
+    }
+
+    const updatedLog = {
+      ...editingHealthLog,
+      date: formData.get('date'),
+      weight: weight,
+      height: height,
+      ailment: formData.get('ailment')?.trim(),
+      medicines: [...medicines],
+      notes: formData.get('notes')?.trim() || ''
+    };
+
+    setHealthLogs(healthLogs.map(l => l.id === updatedLog.id ? updatedLog : l));
+    setShowEditHealth(false);
+    setMedicines([]);
+    setNewMedicine({ name: '', dosage: '', frequency: '', duration: '' });
+  };
+
+  /**
+   * Delete health log
+   */
   const handleDeleteHealthLog = async (logId) => {
     if (window.confirm('Delete this health log?')) {
-      await dbRef.current.deleteHealthLog(logId);
       setHealthLogs(healthLogs.filter(l => l.id !== logId));
     }
   };
 
+  // ========== MEDICINE HANDLERS ==========
+
+  /**
+   * Add medicine to current log being edited/created
+   */
   const addMedicine = () => {
-    if (newMedicine.name && newMedicine.dosage) {
-      setMedicines([...medicines, newMedicine]);
-      setNewMedicine({ name: '', dosage: '', frequency: '', duration: '' });
-    }
+
+
+    setMedicines([...medicines, {
+      name: newMedicine.name.trim(),
+      dosage: newMedicine.dosage.trim(),
+      frequency: newMedicine.frequency.trim() || 'Not specified',
+      duration: newMedicine.duration.trim() || 'Not specified'
+    }]);
+    
+    setNewMedicine({ name: '', dosage: '', frequency: '', duration: '' });
   };
 
+  /**
+   * Remove medicine from current list
+   */
   const removeMedicine = (index) => {
     setMedicines(medicines.filter((_, i) => i !== index));
   };
 
+  // ========== DATA AGGREGATION FUNCTIONS ==========
+
+  /**
+   * Get consolidated medicines from all health logs
+   */
   const getConsolidatedMedicines = () => {
     const medicineMap = {};
     healthLogs.forEach(log => {
@@ -451,8 +585,12 @@ export default function ChildHealthTracker() {
     return Object.values(medicineMap).sort((a, b) => new Date(b.lastUsed) - new Date(a.lastUsed));
   };
 
+  /**
+   * Get growth data for charts
+   */
   const getGrowthData = () => {
-    return healthLogs
+    const childLogs = healthLogs.filter(log => log.childId === activeChild?.id);
+    return childLogs
       .filter(log => log.weight && log.height)
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .map(log => ({
@@ -463,8 +601,12 @@ export default function ChildHealthTracker() {
       }));
   };
 
+  /**
+   * Get upcoming vaccines with days remaining
+   */
   const getUpcomingVaccines = () => {
-    return vaccines
+    const childVaccines = vaccines.filter(v => v.childId === activeChild?.id);
+    return childVaccines
       .filter(v => v.nextDueDate)
       .map(v => ({
         ...v,
@@ -473,48 +615,175 @@ export default function ChildHealthTracker() {
       .sort((a, b) => a.daysLeft - b.daysLeft);
   };
 
+  /**
+   * Download health data as CSV
+   */
   const downloadCSV = () => {
     let csv = 'Type,Date,Item,Details,Notes\n';
     
-    vaccines.forEach(v => {
+    const childVaccines = vaccines.filter(v => v.childId === activeChild?.id);
+    const childLogs = healthLogs.filter(l => l.childId === activeChild?.id);
+    
+    childVaccines.forEach(v => {
       csv += `Vaccine,${v.dateGiven},${v.name},"Next: ${v.nextDueDate}",${v.clinic || 'N/A'}\n`;
     });
 
-    healthLogs.forEach(log => {
+    childLogs.forEach(log => {
       const meds = log.medicines?.map(m => `${m.name} (${m.dosage})`).join(' | ') || 'None';
       csv += `Health Log,${log.date},${log.ailment},"Weight: ${log.weight}kg, Height: ${log.height}cm, Medicines: ${meds}",${log.notes || 'N/A'}\n`;
     });
 
     const element = document.createElement('a');
     element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
-    element.setAttribute('download', `Health_Report_${activeChild.name}_${new Date().toISOString().split('T')[0]}.csv`);
+    element.setAttribute('download', `Health_Report_${activeChild?.name}_${new Date().toISOString().split('T')[0]}.csv`);
     element.style.display = 'none';
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
   };
 
-  const calculateAge = (dob) => {
-    const today = new Date();
-    const birthDate = new Date(dob);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
+  // ========== RENDER LOGIN SCREEN ==========
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-blue-50 p-4">
+        <div className="max-w-md mx-auto text-center py-20">
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">Child Health Tracker</h1>
+          <p className="text-lg text-gray-600 mb-8">Sign in to access your child's health records</p>
+          
+          <button
+            onClick={() => {
+              setShowLoginForm(true);
+              setIsRegistering(false);
+              setAuthError('');
+            }}
+            disabled={isLoading}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-3 px-8 rounded-xl text-lg flex items-center justify-center gap-2 mx-auto"
+          >
+            <AddIcon /> Sign In
+          </button>
 
-    const monthsSince = (today.getFullYear() - birthDate.getFullYear()) * 12 + (today.getMonth() - birthDate.getMonth());
-    if (age === 0) {
-      return `${monthsSince} months`;
-    }
-    return `${age} year${age > 1 ? 's' : ''}, ${monthsSince % 12} months`;
-  };
+          {/* LOGIN FORM MODAL */}
+          {showLoginForm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
+                <h2 className="text-2xl font-bold text-gray-800 mb-6">
+                  {isRegistering ? 'Create Account' : 'Sign In'}
+                </h2>
+                
+                {authError && (
+                  <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-4 rounded">
+                    <p className="text-sm text-red-700">{authError}</p>
+                  </div>
+                )}
+                
+                <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+                    <input
+                      type="email"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      disabled={isLoading}
+                      required
+                      className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                    <input
+                      type="password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="••••••••"
+                      disabled={isLoading}
+                      required
+                      minLength="6"
+                      className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    />
+                    {isRegistering && (
+                      <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
+                    )}
+                  </div>
+                  
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                  >
+                    <SaveIcon /> {isLoading ? 'Please wait...' : (isRegistering ? 'Create Account' : 'Sign In')}
+                  </button>
+                </form>
 
+                <div className="mt-4 text-sm text-center">
+                  {isRegistering ? (
+                    <>
+                      Already have an account?{' '}
+                      <button
+                        onClick={() => {
+                          setIsRegistering(false);
+                          setAuthError('');
+                        }}
+                        disabled={isLoading}
+                        className="text-blue-600 hover:text-blue-800 font-semibold disabled:text-gray-400"
+                      >
+                        Sign In
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      Don't have an account?{' '}
+                      <button
+                        onClick={() => {
+                          setIsRegistering(true);
+                          setAuthError('');
+                        }}
+                        disabled={isLoading}
+                        className="text-blue-600 hover:text-blue-800 font-semibold disabled:text-gray-400"
+                      >
+                        Create One
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowLoginForm(false);
+                    setAuthError('');
+                  }}
+                  disabled={isLoading}
+                  className="w-full bg-gray-300 hover:bg-gray-400 disabled:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg transition mt-4 flex items-center justify-center gap-2"
+                >
+                  <CancelIcon /> Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ========== NO CHILD SCREEN ==========
   if (!activeChild) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-blue-50 p-4">
         <div className="max-w-2xl mx-auto text-center py-20">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">Child Health Tracker</h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-800">Child Health Tracker</h1>
+            <div>
+              <p className="text-sm text-gray-600 mb-2">Signed in: {user?.email}</p>
+              <button
+                onClick={handleLogout}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-1 rounded text-sm"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+
           <p className="text-lg text-gray-600 mb-8">Start by adding your child's information</p>
           <button
             onClick={() => setShowAddChild(true)}
@@ -523,6 +792,7 @@ export default function ChildHealthTracker() {
             <AddIcon /> Add Your First Child
           </button>
 
+          {/* ADD CHILD MODAL */}
           {showAddChild && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
               <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
@@ -533,7 +803,7 @@ export default function ChildHealthTracker() {
                     <input
                       type="text"
                       name="childName"
-                      placeholder="e.g., Vihan"
+                      placeholder="e.g., Emma"
                       required
                       className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -572,26 +842,43 @@ export default function ChildHealthTracker() {
     );
   }
 
+  // ========== MAIN APP RENDER ==========
   const upcomingVaccines = getUpcomingVaccines();
   const consolidatedMedicines = getConsolidatedMedicines();
   const growthData = getGrowthData();
+  const childVaccines = vaccines.filter(v => v.childId === activeChild?.id);
+  const childLogs = healthLogs.filter(l => l.childId === activeChild?.id);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-blue-50 font-sans pb-24">
-      {/* Header */}
+      {/* ========== HEADER ========== */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 shadow-lg sticky top-0 z-40">
-        <h1 className="text-2xl font-bold mb-3">Child Health Tracker</h1>
+        <div className="flex justify-between items-start mb-3">
+          <h1 className="text-2xl font-bold">Child Health Tracker</h1>
+          <div className="text-sm">
+            <p className="mb-1">{user?.email}</p>
+            <button
+              onClick={handleLogout}
+              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
         
-        {/* Child Selector */}
+        {/* ERROR MESSAGE */}
+        {syncError && (
+          <div className="bg-red-500 bg-opacity-20 border-l-2 border-red-300 p-2 rounded mb-3 text-sm">
+            {syncError}
+          </div>
+        )}
+        
+        {/* CHILD SELECTOR */}
         <div className="flex gap-2 overflow-x-auto pb-2">
           {children.map(child => (
             <button
               key={child.id}
-              onClick={() => {
-                setActiveChild(child);
-                loadChildData(child.id, dbRef.current);
-                dbRef.current.saveState('lastActiveChild', child.id);
-              }}
+              onClick={() => setActiveChild(child)}
               className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap text-sm transition ${
                 activeChild.id === child.id
                   ? 'bg-white text-blue-600'
@@ -609,7 +896,7 @@ export default function ChildHealthTracker() {
           </button>
         </div>
 
-        {/* Child Actions */}
+        {/* CHILD ACTIONS */}
         <div className="flex gap-2 mt-2">
           <button
             onClick={() => {
@@ -631,59 +918,18 @@ export default function ChildHealthTracker() {
         </div>
       </div>
 
-      {/* Edit Child Modal */}
-      {showEditChild && editingChildData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Edit Child</h2>
-            <form onSubmit={handleEditChild} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Child's Name *</label>
-                <input
-                  type="text"
-                  name="childName"
-                  defaultValue={editingChildData.name}
-                  required
-                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth *</label>
-                <input
-                  type="date"
-                  name="dob"
-                  defaultValue={formatDateForInput(editingChildData.dob)}
-                  required
-                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowEditChild(false)}
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
-                >
-                  <CancelIcon /> Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
-                >
-                  <SaveIcon /> Save
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Content Area */}
+      {/* ========== CONTENT AREA - DASHBOARD TAB ========== */}
       <div className="max-w-2xl mx-auto p-4">
-        
-        {/* DASHBOARD */}
         {activeTab === 'dashboard' && (
           <div className="space-y-4">
-            {/* Child Info */}
+            {/* LOADING STATE */}
+            {dataLoading && (
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                <p className="text-sm text-blue-700">Loading your data...</p>
+              </div>
+            )}
+
+            {/* CHILD PROFILE */}
             <div className="bg-white rounded-2xl shadow-md p-6 border-l-4 border-blue-500">
               <h2 className="text-lg font-bold text-gray-800 mb-3">👶 Child Profile</h2>
               <div className="space-y-1 text-sm">
@@ -693,28 +939,28 @@ export default function ChildHealthTracker() {
               </div>
             </div>
 
-            {/* Quick Stats */}
-            {healthLogs.length > 0 && (
+            {/* LATEST MEASUREMENTS */}
+            {childLogs.length > 0 && (
               <div className="bg-white rounded-2xl shadow-md p-6 border-l-4 border-green-500">
                 <h2 className="text-lg font-bold text-gray-800 mb-4">📊 Latest Measurements</h2>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center">
                     <p className="text-sm text-gray-600">Weight</p>
-                    <p className="text-2xl font-bold text-blue-600">{healthLogs[0].weight} kg</p>
+                    <p className="text-2xl font-bold text-blue-600">{childLogs[0].weight} kg</p>
                   </div>
                   <div className="text-center">
                     <p className="text-sm text-gray-600">Height</p>
-                    <p className="text-2xl font-bold text-green-600">{healthLogs[0].height} cm</p>
+                    <p className="text-2xl font-bold text-green-600">{childLogs[0].height} cm</p>
                   </div>
                   <div className="text-center">
                     <p className="text-sm text-gray-600">Last Check</p>
-                    <p className="text-sm font-semibold text-gray-700">{new Date(healthLogs[0].date).toLocaleDateString()}</p>
+                    <p className="text-sm font-semibold text-gray-700">{new Date(childLogs[0].date).toLocaleDateString()}</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Growth Chart */}
+            {/* GROWTH CHART */}
             {growthData.length >= 2 && (
               <div className="bg-white rounded-2xl shadow-md p-6">
                 <h2 className="text-lg font-bold text-gray-800 mb-4">📈 Growth Trend</h2>
@@ -732,7 +978,7 @@ export default function ChildHealthTracker() {
               </div>
             )}
 
-            {/* Upcoming Vaccines */}
+            {/* UPCOMING VACCINES */}
             {upcomingVaccines.length > 0 && (
               <div className="bg-gradient-to-r from-orange-100 to-red-50 rounded-2xl shadow-md p-6 border-l-4 border-orange-500">
                 <h2 className="text-lg font-bold text-gray-800 mb-3">⚠️ Upcoming Vaccines</h2>
@@ -756,34 +1002,23 @@ export default function ChildHealthTracker() {
               </div>
             )}
 
-            {/* Recent Health Logs */}
-            {healthLogs.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-md p-6 border-l-4 border-purple-500">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">❤️ Recent Health Logs</h2>
-                <div className="space-y-3">
-                  {healthLogs.slice(0, 3).map((log, idx) => (
-                    <div key={idx} className="bg-gray-50 rounded-lg p-4 border-l-2 border-purple-400">
-                      <p className="text-sm font-semibold text-gray-600">{new Date(log.date).toLocaleDateString()}</p>
-                      <p className="text-gray-800 font-medium">{log.ailment}</p>
-                      {log.medicines.length > 0 && (
-                        <p className="text-sm text-gray-600 mt-1">💊 {log.medicines.map(m => m.name).join(', ')}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Quick Action Buttons */}
+            {/* QUICK ACTION BUTTONS */}
             <div className="grid grid-cols-2 gap-3 mt-6">
               <button
-                onClick={() => setShowAddVaccine(true)}
+                onClick={() => {
+                  setEditingVaccine(null);
+                  setShowAddVaccine(true);
+                }}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition"
               >
                 <AddIcon /> Add Vaccine
               </button>
               <button
-                onClick={() => setShowAddHealth(true)}
+                onClick={() => {
+                  setEditingHealthLog(null);
+                  setMedicines([]);
+                  setShowAddHealth(true);
+                }}
                 className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition"
               >
                 <AddIcon /> Log Health
@@ -792,37 +1027,51 @@ export default function ChildHealthTracker() {
           </div>
         )}
 
-        {/* VACCINES TAB */}
+        {/* ========== VACCINES TAB ========== */}
         {activeTab === 'vaccines' && (
           <div className="space-y-4">
             <button
-              onClick={() => setShowAddVaccine(true)}
+              onClick={() => {
+                setEditingVaccine(null);
+                setShowAddVaccine(true);
+              }}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg mb-4"
             >
               <AddIcon /> Add New Vaccine
             </button>
             <div className="bg-white rounded-2xl shadow-md p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4">Vaccine History</h2>
-              {vaccines.length === 0 ? (
+              {childVaccines.length === 0 ? (
                 <p className="text-gray-600 text-center py-6">No vaccines recorded yet</p>
               ) : (
                 <div className="space-y-3">
-                  {vaccines.map((vaccine) => (
+                  {childVaccines.map((vaccine) => (
                     <div key={vaccine.id} className="bg-gray-50 rounded-lg p-4 border-l-4 border-blue-400">
                       <div className="flex justify-between items-start mb-2">
-                        <div>
+                        <div className="flex-1">
                           <h3 className="font-bold text-gray-800">{vaccine.name}</h3>
                           <p className="text-sm text-gray-600">📅 Given: {vaccine.dateGiven}</p>
                           <p className="text-sm text-gray-600">📌 Next Due: {vaccine.nextDueDate}</p>
                           {vaccine.clinic && <p className="text-sm text-gray-600">🏥 {vaccine.clinic}</p>}
                           {vaccine.notes && <p className="text-sm text-gray-600 mt-1">{vaccine.notes}</p>}
                         </div>
-                        <button
-                          onClick={() => handleDeleteVaccine(vaccine.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <DeleteIcon />
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingVaccine(vaccine);
+                              setShowEditVaccine(true);
+                            }}
+                            className="text-blue-500 hover:text-blue-700"
+                          >
+                            <EditIcon />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteVaccine(vaccine.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <DeleteIcon />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -832,22 +1081,26 @@ export default function ChildHealthTracker() {
           </div>
         )}
 
-        {/* HEALTH RECORDS TAB */}
+        {/* ========== HEALTH RECORDS TAB ========== */}
         {activeTab === 'health' && (
           <div className="space-y-4">
             <button
-              onClick={() => setShowAddHealth(true)}
+              onClick={() => {
+                setEditingHealthLog(null);
+                setMedicines([]);
+                setShowAddHealth(true);
+              }}
               className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg mb-4"
             >
               <AddIcon /> Add Health Log
             </button>
             <div className="bg-white rounded-2xl shadow-md p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4">Health Log Timeline</h2>
-              {healthLogs.length === 0 ? (
+              {childLogs.length === 0 ? (
                 <p className="text-gray-600 text-center py-6">No health logs recorded yet</p>
               ) : (
                 <div className="space-y-3">
-                  {healthLogs.map((log, idx) => (
+                  {childLogs.map((log) => (
                     <div key={log.id}>
                       <button
                         onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)}
@@ -862,20 +1115,9 @@ export default function ChildHealthTracker() {
                               <span className="text-gray-600">H: <strong>{log.height}</strong> cm</span>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <svg className={`w-5 h-5 text-gray-600 transition ${expandedLog === log.id ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M7 10l5 5 5-5z" />
-                            </svg>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteHealthLog(log.id);
-                              }}
-                              className="text-red-500 hover:text-red-700"
-                            >
-                              <DeleteIcon />
-                            </button>
-                          </div>
+                          <svg className={`w-5 h-5 text-gray-600 transition ${expandedLog === log.id ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M7 10l5 5 5-5z" />
+                          </svg>
                         </div>
                       </button>
 
@@ -904,6 +1146,28 @@ export default function ChildHealthTracker() {
                               <p className="text-gray-600">{log.notes}</p>
                             </div>
                           )}
+                          <div className="flex gap-2 mt-4 pt-4 border-t">
+                            <button
+                              onClick={() => {
+                                setEditingHealthLog(log);
+                                setMedicines(log.medicines);
+                                setShowEditHealth(true);
+                                setExpandedLog(null);
+                              }}
+                              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-3 rounded flex items-center justify-center gap-1 text-sm"
+                            >
+                              <EditIcon /> Edit
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleDeleteHealthLog(log.id);
+                                setExpandedLog(null);
+                              }}
+                              className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-3 rounded flex items-center justify-center gap-1 text-sm"
+                            >
+                              <DeleteIcon /> Delete
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -914,7 +1178,7 @@ export default function ChildHealthTracker() {
           </div>
         )}
 
-        {/* MEDICINES TAB */}
+        {/* ========== MEDICINES TAB ========== */}
         {activeTab === 'medicines' && (
           <div className="space-y-4">
             <div className="bg-white rounded-2xl shadow-md p-6">
@@ -974,7 +1238,7 @@ export default function ChildHealthTracker() {
           </div>
         )}
 
-        {/* SETTINGS TAB */}
+        {/* ========== SETTINGS TAB ========== */}
         {activeTab === 'settings' && (
           <div className="space-y-4">
             <div className="bg-white rounded-2xl shadow-md p-6 mb-4">
@@ -996,22 +1260,22 @@ export default function ChildHealthTracker() {
             </div>
 
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl shadow-md p-6 border-l-4 border-blue-500">
-              <h3 className="font-bold text-gray-800 mb-3">🔔 Notifications</h3>
+              <h3 className="font-bold text-gray-800 mb-3">🔔 Cloud Sync</h3>
               <p className="text-sm text-gray-600 mb-3">
-                When you set up AWS Lambda and EventBridge, the app will automatically send health reports every 2 months to rrsushmaa@gmail.com at 9 AM.
+                Your health data is automatically synced to the cloud and accessible from any device when you sign in with this email address.
               </p>
               <p className="text-xs text-gray-500">
-                Setup guides available in documentation for later configuration.
+                All data is encrypted and only accessible by you.
               </p>
             </div>
 
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl shadow-md p-6 border-l-4 border-green-500">
               <h3 className="font-bold text-gray-800 mb-3">📱 Data Storage</h3>
               <p className="text-sm text-gray-600 mb-2">
-                ✓ All data stored locally on your device (IndexedDB)
+                ✓ All data stored securely in the cloud
               </p>
               <p className="text-sm text-gray-600 mb-2">
-                ✓ No cloud sync (your privacy)
+                ✓ Accessible from any device
               </p>
               <p className="text-sm text-gray-600">
                 ✓ Export to CSV anytime using the button above
@@ -1022,21 +1286,112 @@ export default function ChildHealthTracker() {
               <h3 className="font-bold text-gray-800 mb-3">✨ Features Included</h3>
               <ul className="text-sm text-gray-600 space-y-1">
                 <li>✓ Multi-child support with edit/delete</li>
-                <li>✓ Vaccine tracking with reminders</li>
-                <li>✓ Health logs with multiple medicines</li>
+                <li>✓ Vaccine tracking with edit/delete</li>
+                <li>✓ Health logs with edit/delete</li>
+                <li>✓ Multiple medicines per log</li>
                 <li>✓ Growth charts (weight & height)</li>
                 <li>✓ Consolidated medicines view</li>
                 <li>✓ CSV export</li>
-                <li>✓ Auto-email (AWS Lambda - setup later)</li>
-                <li>✓ Push notifications (setup later)</li>
+                <li>✓ Cloud sync across devices</li>
               </ul>
             </div>
           </div>
         )}
       </div>
 
-      {/* Add Vaccine Modal */}
-      {showAddVaccine && (
+      {/* ========== MODALS - ADD/EDIT CHILD ========== */}
+      {showAddChild && !showEditChild && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Add Child</h2>
+            <form onSubmit={handleAddChild} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Child's Name *</label>
+                <input
+                  type="text"
+                  name="childName"
+                  placeholder="e.g., Vihan"
+                  required
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth *</label>
+                <input
+                  type="date"
+                  name="dob"
+                  required
+                  defaultValue={formatDateForInput(new Date())}
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddChild(false)}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <CancelIcon /> Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <SaveIcon /> Add Child
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditChild && editingChildData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Edit Child</h2>
+            <form onSubmit={handleEditChild} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Child's Name *</label>
+                <input
+                  type="text"
+                  name="childName"
+                  defaultValue={editingChildData.name}
+                  required
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth *</label>
+                <input
+                  type="date"
+                  name="dob"
+                  defaultValue={formatDateForInput(editingChildData.dob)}
+                  required
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditChild(false)}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <CancelIcon /> Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <SaveIcon /> Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========== MODALS - ADD/EDIT VACCINE ========== */}
+      {showAddVaccine && !showEditVaccine && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto py-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
             <h3 className="text-xl font-bold text-gray-800 mb-6">Add Vaccine</h3>
@@ -1107,8 +1462,82 @@ export default function ChildHealthTracker() {
         </div>
       )}
 
-      {/* Add Health Log Modal */}
-      {showAddHealth && (
+      {showEditVaccine && editingVaccine && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto py-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
+            <h3 className="text-xl font-bold text-gray-800 mb-6">Edit Vaccine</h3>
+            <form onSubmit={handleEditVaccine} className="space-y-4 max-h-96 overflow-y-auto">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Vaccine Name *</label>
+                <input
+                  type="text"
+                  name="vaccineName"
+                  defaultValue={editingVaccine.name}
+                  required
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Date Given *</label>
+                <input
+                  type="date"
+                  name="dateGiven"
+                  defaultValue={formatDateForInput(editingVaccine.dateGiven)}
+                  required
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Next Due Date</label>
+                <input
+                  type="date"
+                  name="nextDueDate"
+                  defaultValue={formatDateForInput(editingVaccine.nextDueDate)}
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Clinic/Provider Name (Optional)</label>
+                <input
+                  type="text"
+                  name="clinic"
+                  defaultValue={editingVaccine.clinic || ''}
+                  placeholder="e.g., City Hospital"
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Notes (Optional)</label>
+                <textarea
+                  name="notes"
+                  defaultValue={editingVaccine.notes || ''}
+                  placeholder="e.g., Side effects, arm used"
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows="2"
+                ></textarea>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditVaccine(false)}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <CancelIcon /> Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <SaveIcon /> Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========== MODALS - ADD/EDIT HEALTH LOG ========== */}
+      {showAddHealth && !showEditHealth && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto py-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
             <h3 className="text-xl font-bold text-gray-800 mb-6">Log Health</h3>
@@ -1136,7 +1565,7 @@ export default function ChildHealthTracker() {
                 <input type="text" placeholder="e.g., Fever, Cough" name="ailment" required className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
 
-              {/* Medicines Section */}
+              {/* MEDICINES SECTION */}
               <div className="bg-green-50 rounded-lg p-3 border border-green-200">
                 <p className="font-bold text-gray-800 mb-3 text-sm">💊 Medicines Used *</p>
                 
@@ -1218,6 +1647,7 @@ export default function ChildHealthTracker() {
                   onClick={() => {
                     setShowAddHealth(false);
                     setMedicines([]);
+                    setNewMedicine({ name: '', dosage: '', frequency: '', duration: '' });
                   }}
                   className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
                 >
@@ -1235,7 +1665,135 @@ export default function ChildHealthTracker() {
         </div>
       )}
 
-      {/* Bottom Navigation */}
+      {showEditHealth && editingHealthLog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto py-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
+            <h3 className="text-xl font-bold text-gray-800 mb-6">Edit Health Log</h3>
+            <form onSubmit={handleEditHealthLog} className="space-y-4 max-h-96 overflow-y-auto">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
+                <input 
+                  type="date" 
+                  name="date" 
+                  required 
+                  defaultValue={formatDateForInput(editingHealthLog.date)}
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Weight (kg) *</label>
+                <input type="number" step="0.1" defaultValue={editingHealthLog.weight} name="weight" required className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Height (cm) *</label>
+                <input type="number" step="0.1" defaultValue={editingHealthLog.height} name="height" required className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Ailment/Symptoms *</label>
+                <input type="text" defaultValue={editingHealthLog.ailment} name="ailment" required className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+
+              {/* MEDICINES SECTION */}
+              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                <p className="font-bold text-gray-800 mb-3 text-sm">💊 Medicines Used *</p>
+                
+                {medicines.map((med, idx) => (
+                  <div key={idx} className="bg-white rounded p-2 mb-2 flex justify-between items-start gap-2">
+                    <div className="flex-1 text-sm">
+                      <p className="font-semibold text-gray-800">{med.name}</p>
+                      <p className="text-gray-600 text-xs">{med.dosage}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeMedicine(idx)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <DeleteIcon />
+                    </button>
+                  </div>
+                ))}
+
+                <div className="space-y-2 mt-3 border-t pt-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Medicine Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Paracetamol"
+                      value={newMedicine.name}
+                      onChange={(e) => setNewMedicine({ ...newMedicine, name: e.target.value })}
+                      className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Dosage</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 5ml"
+                      value={newMedicine.dosage}
+                      onChange={(e) => setNewMedicine({ ...newMedicine, dosage: e.target.value })}
+                      className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Frequency</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Every 6 hours"
+                      value={newMedicine.frequency}
+                      onChange={(e) => setNewMedicine({ ...newMedicine, frequency: e.target.value })}
+                      className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Duration</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 2 days"
+                      value={newMedicine.duration}
+                      onChange={(e) => setNewMedicine({ ...newMedicine, duration: e.target.value })}
+                      className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addMedicine}
+                    className="w-full bg-green-500 hover:bg-green-600 text-white text-sm py-2 rounded font-semibold transition flex items-center justify-center gap-1"
+                  >
+                    <AddIcon /> Add Medicine
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Notes (Optional)</label>
+                <textarea defaultValue={editingHealthLog.notes || ''} name="notes" className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500" rows="2"></textarea>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditHealth(false);
+                    setMedicines([]);
+                    setNewMedicine({ name: '', dosage: '', frequency: '', duration: '' });
+                  }}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <CancelIcon /> Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <SaveIcon /> Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========== BOTTOM NAVIGATION ========== */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
         <div className="max-w-2xl mx-auto grid grid-cols-5 overflow-x-auto">
           {[
