@@ -22,14 +22,14 @@ import {
 // ============================================
 // These credentials are for your Child Health Tracker project
 const firebaseConfig = {
-  apiKey: "AIzaSyCkwk8zmTpB2rNFC_0ysh-uS44llLJFEuA",
-  authDomain: "child-health-tracker-2026.firebaseapp.com",
-  databaseURL: "https://child-health-tracker-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "child-health-tracker-2026",
-  storageBucket: "child-health-tracker-2026.firebasestorage.app",
-  messagingSenderId: "648033574440",
-  appId: "1:648033574440:web:5843a9f994902e4a951f1d",
-  measurementId: "G-ND3HS2VJSW"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
