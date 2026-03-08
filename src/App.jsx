@@ -395,10 +395,12 @@ export default function App() {
       const updatedChildren = children.filter(c => c.id !== childId);
       const updatedVaccines = vaccines.filter(v => v.childId !== childId);
       const updatedLogs = healthLogs.filter(l => l.childId !== childId);
+      const updatedMedicines = healthLogs.filter(l => l.childId !== childId);
       
       setChildren(updatedChildren);
       setVaccines(updatedVaccines);
       setHealthLogs(updatedLogs);
+      setMedicines(updatedMedicines);
       
       if (activeChild?.id === childId) {
         setActiveChild(updatedChildren.length > 0 ? updatedChildren[0] : null);
@@ -586,7 +588,8 @@ export default function App() {
    */
   const getConsolidatedMedicines = () => {
     const medicineMap = {};
-    healthLogs.forEach(log => {
+    const childLogs = healthLogs.filter(l => l.childId === activeChild?.id);
+    childLogs.forEach(log => {
       log.medicines?.forEach(med => {
         if (!medicineMap[med.name]) {
           medicineMap[med.name] = {
@@ -631,16 +634,19 @@ export default function App() {
   /**
    * Get upcoming vaccines with days remaining
    */
-  const getUpcomingVaccines = () => {
-    const childVaccines = vaccines.filter(v => v.childId === activeChild?.id);
-    return childVaccines
-      .filter(v => v.nextDueDate)
-      .map(v => ({
-        ...v,
-        daysLeft: Math.ceil((new Date(v.nextDueDate) - new Date()) / (1000 * 60 * 60 * 24))
-      }))
-      .sort((a, b) => a.daysLeft - b.daysLeft);
-  };
+const getUpcomingVaccines = () => {
+  const childVaccines = vaccines.filter(v => v.childId === activeChild?.id);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Reset time for fair comparison
+  
+  return childVaccines
+    .filter(v => v.nextDueDate && new Date(v.nextDueDate) > today)  // ✅ Only future dates
+    .map(v => ({
+      ...v,
+      daysLeft: Math.ceil((new Date(v.nextDueDate) - today) / (1000 * 60 * 60 * 24))
+    }))
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+};
 
   /**
    * Download health data as CSV
@@ -1150,7 +1156,7 @@ export default function App() {
 
                       {expandedLog === log.id && (
                         <div className="bg-white rounded-b-lg p-4 border border-t-0 border-gray-200 space-y-3">
-                          {log.medicines != null && log.medicines.length > 0 && (
+                          {log.medicines != null && (
                             <div>
                               <h4 className="font-bold text-gray-800 mb-2">💊 Medicines:</h4>
                               <div className="space-y-2">
@@ -1177,7 +1183,7 @@ export default function App() {
                             <button
                               onClick={() => {
                                 setEditingHealthLog(log);
-                                setMedicines(!log.medicines ? [] : log.medicines);
+                                setMedicines(log.medicines);
                                 setShowEditHealth(true);
                                 setExpandedLog(null);
                               }}
@@ -1438,7 +1444,6 @@ export default function App() {
                 <input
                   type="date"
                   name="dateGiven"
-                  defaultValue={formatDateForInput(new Date())}
                   className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -1509,7 +1514,6 @@ export default function App() {
                 <input
                   type="date"
                   name="dateGiven"
-                  defaultValue={formatDateForInput(editingVaccine.dateGiven)}
                   className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
