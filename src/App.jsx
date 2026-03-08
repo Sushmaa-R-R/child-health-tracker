@@ -480,11 +480,7 @@ export default function App() {
    */
   const handleAddHealthLog = async (e) => {
     e.preventDefault();
-    
-    if (medicines.length === 0) {
-      alert('Please add at least one medicine');
-      return;
-    }
+
 
     const formData = new FormData(e.target);
     
@@ -523,11 +519,6 @@ export default function App() {
   const handleEditHealthLog = async (e) => {
     e.preventDefault();
     
-    if (medicines.length === 0) {
-      alert('Please add at least one medicine');
-      return;
-    }
-
     const formData = new FormData(e.target);
     
     const weight = parseFloat(formData.get('weight'));
@@ -839,7 +830,7 @@ export default function App() {
                     <input
                       type="text"
                       name="childName"
-                      placeholder="e.g., Emma"
+                      placeholder="e.g., Vihan"
                       required
                       className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -1132,7 +1123,7 @@ export default function App() {
             </button>
             <div className="bg-white rounded-2xl shadow-md p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4">Health Log Timeline</h2>
-              {childLogs.length === 0 ? (
+              {!childLogs || childLogs.length === 0 ? (
                 <p className="text-gray-600 text-center py-6">No health logs recorded yet</p>
               ) : (
                 <div className="space-y-3">
@@ -1159,7 +1150,7 @@ export default function App() {
 
                       {expandedLog === log.id && (
                         <div className="bg-white rounded-b-lg p-4 border border-t-0 border-gray-200 space-y-3">
-                          {log.medicines.length > 0 && (
+                          {log.medicines != null && log.medicines.length > 0 && (
                             <div>
                               <h4 className="font-bold text-gray-800 mb-2">💊 Medicines:</h4>
                               <div className="space-y-2">
@@ -1186,7 +1177,7 @@ export default function App() {
                             <button
                               onClick={() => {
                                 setEditingHealthLog(log);
-                                setMedicines(log.medicines);
+                                setMedicines(!log.medicines ? [] : log.medicines);
                                 setShowEditHealth(true);
                                 setExpandedLog(null);
                               }}
@@ -1514,12 +1505,11 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Date Given *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Date Given </label>
                 <input
                   type="date"
                   name="dateGiven"
                   defaultValue={formatDateForInput(editingVaccine.dateGiven)}
-                  required
                   className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
