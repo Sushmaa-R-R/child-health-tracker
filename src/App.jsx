@@ -1293,9 +1293,6 @@ const getUpcomingVaccines = () => {
               <p className="text-sm text-gray-600 mb-2">
                 ✓ Accessible from any device
               </p>
-              <p className="text-sm text-gray-600">
-                ✓ Export to CSV anytime using the button above
-              </p>
             </div>
 
             <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl shadow-md p-6 border-l-4 border-purple-500">
@@ -1307,7 +1304,6 @@ const getUpcomingVaccines = () => {
                 <li>✓ Multiple medicines per log</li>
                 <li>✓ Growth charts (weight & height)</li>
                 <li>✓ Consolidated medicines view</li>
-                <li>✓ CSV export</li>
                 <li>✓ Cloud sync across devices</li>
               </ul>
             </div>
