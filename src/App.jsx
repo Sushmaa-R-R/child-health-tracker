@@ -1270,45 +1270,7 @@ const getUpcomingVaccines = () => {
             </div>
           </div>
         )}
-
-        {/* ========== SETTINGS TAB ========== */}
-        {activeTab === 'settings' && (
-          <div className="space-y-4">
-
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl shadow-md p-6 border-l-4 border-blue-500">
-              <h3 className="font-bold text-gray-800 mb-3">🔔 Cloud Sync</h3>
-              <p className="text-sm text-gray-600 mb-3">
-                Your health data is automatically synced to the cloud and accessible from any device when you sign in with this email address.
-              </p>
-              <p className="text-xs text-gray-500">
-                All data is encrypted and only accessible by you.
-              </p>
-            </div>
-
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl shadow-md p-6 border-l-4 border-green-500">
-              <h3 className="font-bold text-gray-800 mb-3">📱 Data Storage</h3>
-              <p className="text-sm text-gray-600 mb-2">
-                ✓ All data stored securely in the cloud
-              </p>
-              <p className="text-sm text-gray-600 mb-2">
-                ✓ Accessible from any device
-              </p>
-            </div>
-
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl shadow-md p-6 border-l-4 border-purple-500">
-              <h3 className="font-bold text-gray-800 mb-3">✨ Features Included</h3>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>✓ Multi-child support with edit/delete</li>
-                <li>✓ Vaccine tracking with edit/delete</li>
-                <li>✓ Health logs with edit/delete</li>
-                <li>✓ Multiple medicines per log</li>
-                <li>✓ Growth charts (weight & height)</li>
-                <li>✓ Consolidated medicines view</li>
-                <li>✓ Cloud sync across devices</li>
-              </ul>
-            </div>
-          </div>
-        )}
+        
       </div>
 
       {/* ========== MODALS - ADD/EDIT CHILD ========== */}
@@ -1807,8 +1769,7 @@ const getUpcomingVaccines = () => {
             { id: 'dashboard', label: 'Home', icon: HomeIcon },
             { id: 'vaccines', label: 'Vaccines', icon: VaccineIcon },
             { id: 'health', label: 'Health', icon: HealthIcon },
-            { id: 'medicines', label: 'Medicines', icon: MedicineIcon },
-            { id: 'settings', label: 'Settings', icon: SettingsIcon }
+            { id: 'medicines', label: 'Medicines', icon: MedicineIcon }
           ].map(tab => {
             const Icon = tab.icon;
             return (
