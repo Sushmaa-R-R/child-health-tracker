@@ -235,6 +235,42 @@ export default function App() {
     }
   }, [children, vaccines, healthLogs, user]);
 
+  useEffect(() => {
+  const unsubscribe = onAuthChange((currentUser) => {
+    if (currentUser) {
+      // User logged in
+      setUser(currentUser);
+      setIsLoggedIn(true);
+      // Clear previous user's data
+      setChildren([]);
+      setVaccines([]);
+      setHealthLogs([]);
+      setActiveChild(null);
+      // Load new user's data
+      loadDataFromCloud(currentUser.uid);
+    } else {
+      // User logged out
+      setUser(null);
+      setIsLoggedIn(false);
+      // Clear all state
+      setChildren([]);
+      setVaccines([]);
+      setHealthLogs([]);
+      setActiveChild(null);
+      setMedicines([]);
+      setNewMedicine({ name: '', dosage: '', frequency: '', duration: '' });
+      // Clear UI state
+      setShowLoginForm(false);
+      setLoginEmail('');
+      setLoginPassword('');
+      setAuthError('');
+      setSyncError('');
+    }
+  });
+
+  return unsubscribe;
+}, []);
+
   // ========== AUTHENTICATION HANDLERS ==========
 
   /**
