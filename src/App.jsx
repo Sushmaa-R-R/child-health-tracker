@@ -1452,7 +1452,6 @@ const getUpcomingVaccines = () => {
                 <input
                   type="date"
                   name="nextDueDate"
-                  defaultValue={formatDateForInput(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000))}
                   className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -1522,7 +1521,6 @@ const getUpcomingVaccines = () => {
                 <input
                   type="date"
                   name="nextDueDate"
-                  defaultValue={formatDateForInput(editingVaccine.nextDueDate)}
                   className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
