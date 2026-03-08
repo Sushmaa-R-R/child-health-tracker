@@ -1274,23 +1274,6 @@ const getUpcomingVaccines = () => {
         {/* ========== SETTINGS TAB ========== */}
         {activeTab === 'settings' && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl shadow-md p-6 mb-4">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Settings & Options</h2>
-              <div className="space-y-3">
-                <button
-                  onClick={downloadCSV}
-                  className="w-full bg-blue-100 hover:bg-blue-200 text-blue-800 py-3 px-4 rounded-lg font-semibold transition flex items-center justify-center gap-2"
-                >
-                  <DownloadIcon /> Download Health Report (CSV)
-                </button>
-                <button
-                  onClick={() => setShowAddChild(true)}
-                  className="w-full bg-green-100 hover:bg-green-200 text-green-800 py-3 px-4 rounded-lg font-semibold transition flex items-center justify-center gap-2"
-                >
-                  <AddIcon /> Add Another Child
-                </button>
-              </div>
-            </div>
 
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl shadow-md p-6 border-l-4 border-blue-500">
               <h3 className="font-bold text-gray-800 mb-3">🔔 Cloud Sync</h3>
